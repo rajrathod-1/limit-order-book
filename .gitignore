@@ -1,0 +1,15 @@
+build*/
+cmake-build-*/
+.cache/
+compile_commands.json
+
+# Market data. Nasdaq's day files are 3.5 GB compressed and 8+ GB on the wire;
+# scripts/fetch_itch.sh reproduces them from the public archive.
+data/*.gz
+data/*.itch
+data/symbols/
+*.itch
+
+.DS_Store
+.vscode/
+.idea/

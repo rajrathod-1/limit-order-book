@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Order Book · Raj Rathod</title>
+  <meta name="description" content="A price-time priority matching engine in C++20, compiled to WebAssembly and running live in the browser. 2.2x faster than a std::map book on real Nasdaq ITCH data." />
+  <meta property="og:title" content="A matching engine, running in this tab" />
+  <meta property="og:description" content="The C++20 limit order book, compiled to WebAssembly. Watch it match, sweep it yourself, and benchmark it against std::map in your browser." />
+  <meta name="theme-color" content="#0b0b0c" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0b0c'/%3E%3Crect x='2' y='3' width='5' height='2' fill='%23ebe7df'/%3E%3Crect x='2' y='7' width='8' height='2' fill='%23ebe7df'/%3E%3Crect x='9' y='11' width='5' height='2' fill='%23ff4b1f'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500&family=Instrument+Serif:ital@0;1&family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0b0b0c;
+      --paper: #ebe7df;
+      --signal: #ff4b1f;
+      --bid: #8fc9a3;
+      --dim: color-mix(in srgb, var(--paper) 62%, transparent);
+      --line: color-mix(in srgb, var(--paper) 14%, transparent);
+      --serif: "Instrument Serif", Georgia, serif;
+      --sans: "Instrument Sans", system-ui, sans-serif;
+      --mono: "Martian Mono", ui-monospace, monospace;
+      --gutter: clamp(16px, 4vw, 56px);
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--ink);
+      color: var(--paper);
+      font: 400 1rem/1.6 var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    :focus-visible { outline: 1px solid var(--signal); outline-offset: 3px; }
+    .mono { font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    .dim { color: var(--dim); }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 0 var(--gutter); }
+
+    header.top { display: flex; justify-content: space-between; gap: 16px; padding: 22px 0; }
+    header.top nav { display: flex; gap: 24px; }
+    header.top a { text-decoration: none; }
+    header.top a:hover { color: var(--signal); }
+
+    .intro { padding: 5vh 0 4vh; max-width: 54rem; }
+    h1 {
+      font: 400 clamp(2.75rem, 7vw, 6rem) / 0.95 var(--serif);
+      letter-spacing: -0.02em;
+      margin: 0.4em 0 0.35em;
+    }
+    h1 em { color: var(--signal); }
+    .lede { font-size: clamp(1.05rem, 1.4vw, 1.25rem); max-width: 40rem; margin: 0; }
+
+    /* ── Live book ─────────────────────────────── */
+    .live {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 32px;
+      border-top: 1px solid var(--line);
+      padding: 28px 0 64px;
+    }
+    @media (max-width: 860px) { .live { grid-template-columns: 1fr; } }
+
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+
+    .ladder { font-family: var(--mono); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+    .row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 7rem 1fr 6rem;
+      padding: 3px 8px;
+      align-items: center;
+    }
+    .row .bar {
+      position: absolute;
+      top: 2px; bottom: 2px; right: 0;
+      opacity: 0.18;
+      transition: width 0.12s linear;
+    }
+    .row.ask .px { color: var(--signal); }
+    .row.ask .bar { background: var(--signal); }
+    .row.bid .px { color: var(--bid); }
+    .row.bid .bar { background: var(--bid); }
+    .row .qty { text-align: right; position: relative; }
+    .row .px { position: relative; }
+    .row.hit { background: color-mix(in srgb, var(--paper) 16%, transparent); }
+    .spread {
+      display: flex; justify-content: space-between;
+      padding: 10px 8px; margin: 6px 0;
+      border-block: 1px solid var(--line);
+    }
+
+    .stats {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 18px 16px; margin: 0 0 28px;
+    }
+    .stats dt { color: var(--dim); }
+    .stats dd { margin: 4px 0 0; font: 400 clamp(1.5rem, 2.4vw, 2rem) / 1 var(--serif); font-variant-numeric: tabular-nums; }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 28px; }
+    button {
+      font: inherit; color: inherit; cursor: pointer;
+      background: none;
+      border: 1px solid var(--line);
+      padding: 10px 14px;
+      transition: border-color 0.2s, color 0.2s, background-color 0.2s;
+    }
+    button:hover { border-color: var(--paper); }
+    button.buy:hover { color: var(--bid); border-color: var(--bid); }
+    button.sell:hover { color: var(--signal); border-color: var(--signal); }
+    button:disabled { opacity: 0.5; cursor: progress; }
+    label.rate { display: flex; align-items: center; gap: 10px; }
+    input[type=range] { accent-color: var(--signal); width: 120px; }
+
+    .tape { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+    .tape li {
+      display: grid; grid-template-columns: 5.5rem 3.5rem 1fr auto;
+      gap: 8px; padding: 5px 0; border-top: 1px solid var(--line);
+    }
+    .tape .B { color: var(--bid); }
+    .tape .S { color: var(--signal); }
+    .tape li:first-child { animation: in 0.5s ease-out; }
+    @keyframes in { from { background: color-mix(in srgb, var(--paper) 14%, transparent); } }
+
+    /* ── Benchmark ─────────────────────────────── */
+    section.block { border-top: 1px solid var(--line); padding: 48px 0 56px; }
+    h2 { font: 400 clamp(2rem, 4.5vw, 3.5rem) / 1 var(--serif); letter-spacing: -0.015em; margin: 0.35em 0 0.4em; }
+    h2 em { color: var(--signal); }
+    section.block > p { max-width: 42rem; }
+    table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 0.8125rem; font-variant-numeric: tabular-nums; margin-top: 18px; }
+    th, td { text-align: right; padding: 10px 8px; border-top: 1px solid var(--line); }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--dim); font-weight: 400; font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    td strong { color: var(--signal); font-weight: 500; }
+    .scroll { overflow-x: auto; }
+    #bench-status { min-height: 1.6em; margin-top: 14px; }
+
+    footer { border-top: 1px solid var(--line); padding: 28px 0 40px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+    .error { color: var(--signal); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tape li:first-child { animation: none; }
+      .row .bar { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top mono">
+      <a href="https://raj-rathod-portfolio.vercel.app">Raj Rathod</a>
+      <nav>
+        <a href="#benchmark">Benchmark</a>
+        <a href="https://github.com/rajrathod-1/limit-order-book">GitHub ↗</a>
+      </nav>
+    </header>
+
+    <section class="intro">
+      <p class="mono" style="color: var(--signal)">C++20 · WebAssembly · price-time priority</p>
+      <h1>A matching engine, <em>running in this tab.</em></h1>
+      <p class="lede dim">
+        This is the same limit order book that replays a full Nasdaq trading day at 27 million
+        operations a second, compiled to WebAssembly with the same headers and the same matching
+        rules. The order flow below is random. The matching is real.
+      </p>
+    </section>
+
+    <section class="live" aria-label="Live order book">
+      <div>
+        <div class="panel-head">
+          <span class="mono dim">Depth · 12 levels a side</span>
+          <span class="mono dim" id="mid">—</span>
+        </div>
+        <div class="ladder" id="ladder" aria-hidden="true"></div>
+        <p id="load-error" class="error mono" hidden>WebAssembly failed to load in this browser.</p>
+      </div>
+
+      <div>
+        <dl class="stats">
+          <div><dt class="mono">Resting orders</dt><dd id="s-orders">0</dd></div>
+          <div><dt class="mono">Trades</dt><dd id="s-trades">0</dd></div>
+          <div><dt class="mono">Shares traded</dt><dd id="s-volume">0</dd></div>
+        </dl>
+
+        <div class="controls mono">
+          <button type="button" class="buy" data-sweep="0">Buy 5,000 at market</button>
+          <button type="button" class="sell" data-sweep="1">Sell 5,000 at market</button>
+          <button type="button" id="pause">Pause</button>
+          <label class="rate">Flow <input id="rate" type="range" min="1" max="60" value="12" /></label>
+        </div>
+
+        <div class="panel-head">
+          <span class="mono dim">Trades · passive price, aggressor side</span>
+        </div>
+        <ol class="tape" id="tape" aria-live="off"></ol>
+      </div>
+    </section>
+
+    <section class="block" id="benchmark">
+      <p class="mono" style="color: var(--signal)">Measure it yourself</p>
+      <h2>Flat array versus <em>std::map</em>, in your browser.</h2>
+      <p class="dim">
+        The same mixed flow as the native benchmark suite, weighted like a real ITCH day: 45% adds,
+        45% cancels, 8% replaces, 2% executions, 300,000 operations per run, median of three.
+        Both books are compiled from the same commit. WebAssembly is slower than native, and
+        browsers coarsen timers, so read the ratio rather than the nanoseconds.
+      </p>
+      <button type="button" id="run-bench" class="mono">Run the benchmark</button>
+      <p id="bench-status" class="mono dim" role="status"></p>
+      <div class="scroll">
+        <table id="bench-table" hidden>
+          <thead><tr><th>Book width</th><th>Flat array</th><th>std::map</th><th>Speedup</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="block">
+      <p class="mono" style="color: var(--signal)">Native, on real data</p>
+      <h2>A full Nasdaq day, <em>2.2× faster.</em></h2>
+      <p class="dim">
+        Every message of the 30 December 2019 session, replayed per symbol through both books on
+        an Apple M4 Pro. The two books are cross-checked against each other mid-session and must
+        agree on every level. The speedup tracks book width, which is what the design predicts:
+        indexing an array does not care how wide the book is, and a red-black tree does.
+      </p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Symbol</th><th>Messages</th><th>Book width</th><th>Flat array</th><th>std::map</th><th>Speedup</th></tr></thead>
+          <tbody>
+            <tr><td>TSLA</td><td>545,569</td><td>156,890 ticks</td><td>23.42 M/s</td><td>10.32 M/s</td><td><strong>2.27×</strong></td></tr>
+            <tr><td>AAPL</td><td>1,519,870</td><td>53,577 ticks</td><td>27.04 M/s</td><td>12.22 M/s</td><td><strong>2.20×</strong></td></tr>
+            <tr><td>MSFT</td><td>1,221,483</td><td>53,077 ticks</td><td>28.17 M/s</td><td>14.40 M/s</td><td><strong>1.95×</strong></td></tr>
+            <tr><td>AMD</td><td>1,512,679</td><td>16,001 ticks</td><td>30.91 M/s</td><td>16.74 M/s</td><td><strong>1.85×</strong></td></tr>
+            <tr><td>INTC</td><td>753,348</td><td>18,793 ticks</td><td>28.06 M/s</td><td>17.37 M/s</td><td><strong>1.62×</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="mono dim">
+      <span>Raj Rathod · MIT licensed</span>
+      <span>
+        <a href="https://github.com/rajrathod-1/limit-order-book">Source and full results ↗</a>
+        &nbsp;·&nbsp;
+        <a href="https://raj-rathod-portfolio.vercel.app">Portfolio ↗</a>
+      </span>
+    </footer>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
