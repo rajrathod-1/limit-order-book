@@ -16,7 +16,7 @@ build/itch_gen --out /tmp/synth.itch --messages 2000000   # no download needed
 build/lob_replay --data /tmp/synth.itch
 ```
 
-**In the browser.** The same headers also compile to WebAssembly (`web/`): a live
+**[Live demo →](https://raj-rathod-order-book.vercel.app)** The same headers also compile to WebAssembly (`web/`): a live
 book you can sweep with market orders, and the array-versus-`std::map` benchmark
 running in your own tab. `web/build.sh` rebuilds it with Emscripten; the output
 is committed, so the page deploys as plain static files.
